@@ -145,8 +145,12 @@
     renderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(renderer.domElement);
 
+    // Orbit Controls with strict distance bounds to prevent infinite zoom
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.minDistance = 5;   // Prevents zooming inside the model
+    controls.maxDistance = 25;  // Limits max zoom out so model stays visible
+    controls.maxPolarAngle = Math.PI / 2 + 0.1; // Limits view under the ground plane
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
@@ -160,25 +164,28 @@
     dirLight2.position.set(-5, -5, -5);
     scene.add(dirLight2);
 
-    // 3. Model Loader & Exploded Pos Calculation
+    // 3. Model Loader & Controlled Exploded View Spacing
     let modelParts = [];
     let isExploded = false;
     const loader = new GLTFLoader();
 
-    // Replace filename if your exported GLB file uses a different name
     loader.load('pen_assembly.glb', (gltf) => {
       const model = gltf.scene;
       scene.add(model);
+
+      // Pivot and center camera directly onto the middle of the pen
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      controls.target.copy(center);
 
       model.traverse((child) => {
         if (child.isMesh) {
           // Store initial positions
           child.userData.originalPos = child.position.clone();
           
-          // Separate parts along the main longitudinal axis (Z-axis by default for pens)
-          // Adjust index multiplier if you want wider gaps between parts
+          // Controlled offset distance along Z-axis
           const partIndex = modelParts.length;
-          const offsetDistance = (partIndex - 3) * 2.5; 
+          const offsetDistance = (partIndex - 3) * 0.8; 
           child.userData.explodePos = child.position.clone().add(new THREE.Vector3(0, 0, offsetDistance));
           
           modelParts.push(child);
@@ -191,7 +198,7 @@
     const mouse = new THREE.Vector2();
 
     window.addEventListener('pointerdown', (event) => {
-      // Prevent register when clicking the button or UI card
+      // Prevent raycasting when clicking UI elements
       if (event.target.tagName === 'BUTTON' || event.target.closest('#ui-panel')) return;
 
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
