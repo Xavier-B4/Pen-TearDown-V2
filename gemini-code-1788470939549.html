@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retractable Pen Teardown & Analysis</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f0f2f5;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+    }
+    #ui-panel {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 320px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      backdrop-filter: blur(8px);
+    }
+    #part-title {
+      margin-top: 0;
+      color: #1a1a1a;
+      font-size: 1.25rem;
+    }
+    #part-desc {
+      color: #4a5568;
+      line-height: 1.5;
+      font-size: 0.95rem;
+    }
+    .engineer-badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 6px 12px;
+      background: #eef2ff;
+      color: #4f46e5;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    .btn {
+      position: absolute;
+      bottom: 30px;
+      left: 30px;
+      padding: 14px 28px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 1rem;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="canvas-container"></div>
+  
+  <div id="ui-panel">
+    <h2 id="part-title">Clicker Pen Assembly</h2>
+    <p id="part-desc">Click or tap on any individual component in the 3D viewer to inspect its design function and engineering discipline.</p>
+    <div id="part-engineer" class="engineer-badge">Interactive Teardown</div>
+  </div>
+
+  <button class="btn" id="explode-btn">Toggle Exploded View</button>
+
+  <!-- Import Three.js via ES Modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    // 1. Component Data Mapped to SolidWorks Assembly Names
+    const partData = {
+      "head": {
+        title: "Front Cone / Head",
+        desc: "Clear threaded nose cone that channels the ballpoint tip and provides an internal shoulder to hold the spring in compression.",
+        engineer: "Manufacturing / Plastics Engineer"
+      },
+      "spring": {
+        title: "Compression Return Spring",
+        desc: "A coiled steel wire spring that provides continuous backwards tension against the refill tube to retract the pen point.",
+        engineer: "Materials / Metallurgical Engineer"
+      },
+      "ink": {
+        title: "Ink Refill & Writing Tip",
+        desc: "Houses the viscous ink supply and contains the micro tungsten-carbide ball that meters ink onto the writing surface via rolling action.",
+        engineer: "Precision Mechanical / Chemical Engineer"
+      },
+      "ink cap": {
+        title: "Ink Cartridge Follower Cap",
+        desc: "Seals the back end of the ink tube, preventing fluid leakage while acting as the contact surface for the internal clicking mechanism.",
+        engineer: "Plastics / Fluid Systems Engineer"
+      },
+      "clicker": {
+        title: "Actuator / Plunger (Clicker)",
+        desc: "The primary tactile interface. Transmits direct thumb force down into the internal ratchet system to cycle the pen position.",
+        engineer: "Ergonomics / Mechanical Engineer"
+      },
+      "gear": {
+        title: "Rotary Cam / Pinion Gear",
+        desc: "The critical bistable mechanism. Angled teeth force 45-degree rotation with every press, locking into alternating deep and shallow slots.",
+        engineer: "Kinematic / Mechanical Engineer"
+      },
+      "back": {
+        title: "Main Barrel / Rear Housing",
+        desc: "Houses the pocket clip and primary internal tracks. Includes external rubberized grip ridges for user comfort and control.",
+        engineer: "Industrial / Plastics Engineer"
+      }
+    };
+
+    // 2. Three.js Scene Setup
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf8fafc);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 5, 15);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+    scene.add(ambientLight);
+    
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.5);
+    dirLight1.position.set(5, 10, 7);
+    scene.add(dirLight1);
+
+    const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight2.position.set(-5, -5, -5);
+    scene.add(dirLight2);
+
+    // 3. Model Loader & Exploded Pos Calculation
+    let modelParts = [];
+    let isExploded = false;
+    const loader = new GLTFLoader();
+
+    // Replace filename if your exported GLB file uses a different name
+    loader.load('pen_assembly.glb', (gltf) => {
+      const model = gltf.scene;
+      scene.add(model);
+
+      model.traverse((child) => {
+        if (child.isMesh) {
+          // Store initial positions
+          child.userData.originalPos = child.position.clone();
+          
+          // Separate parts along the main longitudinal axis (Z-axis by default for pens)
+          // Adjust index multiplier if you want wider gaps between parts
+          const partIndex = modelParts.length;
+          const offsetDistance = (partIndex - 3) * 2.5; 
+          child.userData.explodePos = child.position.clone().add(new THREE.Vector3(0, 0, offsetDistance));
+          
+          modelParts.push(child);
+        }
+      });
+    });
+
+    // 4. Raycasting Click Selection
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    window.addEventListener('pointerdown', (event) => {
+      // Prevent register when clicking the button or UI card
+      if (event.target.tagName === 'BUTTON' || event.target.closest('#ui-panel')) return;
+
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(modelParts);
+
+      if (intersects.length > 0) {
+        const clickedMesh = intersects[0].object;
+        const cleanName = clickedMesh.name.toLowerCase().replace(/<\d+>/g, '').trim();
+        
+        const info = partData[cleanName] || {
+          title: clickedMesh.name,
+          desc: "Precision engineering component.",
+          engineer: "Mechanical Engineer"
+        };
+
+        document.getElementById('part-title').innerText = info.title;
+        document.getElementById('part-desc').innerText = info.desc;
+        document.getElementById('part-engineer').innerText = info.engineer;
+      }
+    });
+
+    // 5. Explode Toggle Logic
+    document.getElementById('explode-btn').addEventListener('click', () => {
+      isExploded = !isExploded;
+      modelParts.forEach((part) => {
+        const target = isExploded ? part.userData.explodePos : part.userData.originalPos;
+        part.position.copy(target);
+      });
+    });
+
+    // Window Resize Handler
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Animation Loop
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
