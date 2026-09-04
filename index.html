@@ -148,8 +148,8 @@
     // Orbit Controls with strict distance bounds to prevent infinite zoom
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.minDistance = 5;   // Prevents zooming inside the model
-    controls.maxDistance = 10;  // Limits max zoom out so model stays visible
+    controls.minDistance = 1;   // Prevents zooming inside the model
+    controls.maxDistance = 2;  // Limits max zoom out so model stays visible
     controls.maxPolarAngle = Math.PI / 2 + 0.1; // Limits view under the ground plane
 
     // Lighting
