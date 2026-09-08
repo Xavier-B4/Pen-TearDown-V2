@@ -145,12 +145,12 @@
     renderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(renderer.domElement);
 
-    // Orbit Controls with strict distance bounds to prevent infinite zoom
+    // Orbit Controls with strict distance bounds
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.minDistance = 1;   // Prevents zooming inside the model
-    controls.maxDistance = 2;  // Limits max zoom out so model stays visible
-    controls.maxPolarAngle = Math.PI / 2 + 0.1; // Limits view under the ground plane
+    controls.minDistance = 5;   
+    controls.maxDistance = 25;  
+    controls.maxPolarAngle = Math.PI / 2 + 0.1; 
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
@@ -164,7 +164,7 @@
     dirLight2.position.set(-5, -5, -5);
     scene.add(dirLight2);
 
-    // 3. Model Loader & Controlled Exploded View Spacing
+    // 3. Model Loader & Reduced Exploded View Radius
     let modelParts = [];
     let isExploded = false;
     const loader = new GLTFLoader();
@@ -173,19 +173,17 @@
       const model = gltf.scene;
       scene.add(model);
 
-      // Pivot and center camera directly onto the middle of the pen
       const box = new THREE.Box3().setFromObject(model);
       const center = box.getCenter(new THREE.Vector3());
       controls.target.copy(center);
 
       model.traverse((child) => {
         if (child.isMesh) {
-          // Store initial positions
           child.userData.originalPos = child.position.clone();
           
-          // Controlled offset distance along Z-axis
+          // Reduced multiplier from 0.8 to 0.25 for a tight, compact explosion radius
           const partIndex = modelParts.length;
-          const offsetDistance = (partIndex - 3) * 0.8; 
+          const offsetDistance = (partIndex - 3) * 0.25; 
           child.userData.explodePos = child.position.clone().add(new THREE.Vector3(0, 0, offsetDistance));
           
           modelParts.push(child);
@@ -198,7 +196,6 @@
     const mouse = new THREE.Vector2();
 
     window.addEventListener('pointerdown', (event) => {
-      // Prevent raycasting when clicking UI elements
       if (event.target.tagName === 'BUTTON' || event.target.closest('#ui-panel')) return;
 
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
