@@ -108,15 +108,12 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-    // =========================================================================
-    // 🎛️ TUNING CONFIGURATION
-    // =========================================================================
+    // Fine-Tuning Parameters
     const TUNING = {
-      explodeDistance: 1.3,  // Distance in world units between adjacent parts (tweak up/down slightly if needed)
-      minZoom: 0.5,          // Closest camera distance
-      maxZoom: 30.0          // Furthest camera distance
+      explodeDistance: 1.3,  // Distance gap between adjacent parts in world units
+      minZoom: 0.5,          // Closest camera distance allowed
+      maxZoom: 30.0          // Furthest camera distance allowed
     };
-    // =========================================================================
 
     const partData = {
       "head": {
@@ -190,7 +187,7 @@
     lightBack.position.set(-5, -4, -8);
     scene.add(lightBack);
 
-    // Model Loader & True Centerline Explosion Setup
+    // Model Loader & Setup
     let modelParts = [];
     let isExploded = false;
     let selectedMesh = null;
@@ -200,24 +197,34 @@
       const model = gltf.scene;
       scene.add(model);
 
-      // 1. Center the raw model at the world origin
+      // Center model at the world origin
       const rawBox = new THREE.Box3().setFromObject(model);
       const rawCenter = rawBox.getCenter(new THREE.Vector3());
       model.position.sub(rawCenter);
 
-      // 2. Normalize length to 10 world units
+      // Normalize scale so pen is always 10 units long
       const rawSize = rawBox.getSize(new THREE.Vector3());
       const maxDim = Math.max(rawSize.x, rawSize.y, rawSize.z);
       const targetLength = 10.0;
       const scaleRatio = targetLength / maxDim;
       model.scale.setScalar(scaleRatio);
 
-      // Force scene matrix update so world positions are accurate
       model.updateMatrixWorld(true);
 
-      // 3. Collect individual visible meshes
+      // Collect meshes and enable DoubleSide rendering
       model.traverse((child) => {
         if (child.isMesh) {
+          // Render both front and back faces to fix infinitely thin wall appearance
+          if (child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((mat) => {
+              mat.side = THREE.DoubleSide;
+              if (mat.transparent) {
+                mat.depthWrite = true;
+              }
+            });
+          }
+
           const meshBox = new THREE.Box3().setFromObject(child);
           child.userData.worldCenter = meshBox.getCenter(new THREE.Vector3());
           child.userData.originalLocalPos = child.position.clone();
@@ -225,7 +232,7 @@
         }
       });
 
-      // 4. Determine the exact centerline vector of the pen by connecting the two furthest parts
+      // Calculate pen centerline vector
       let maxDistSq = 0;
       let axisDir = new THREE.Vector3(1, 0, 0);
 
@@ -240,18 +247,17 @@
       }
       axisDir.normalize();
 
-      // 5. Sort parts strictly along that centerline vector (Tip to Tail)
+      // Sort parts from tip to tail along the centerline
       modelParts.sort((a, b) => {
         return a.userData.worldCenter.dot(axisDir) - b.userData.worldCenter.dot(axisDir);
       });
 
-      // 6. Calculate exploded positions using World-to-Local translation
+      // Precalculate exploded coordinates in local space
       const count = modelParts.length;
       modelParts.forEach((part, index) => {
         const offsetMultiplier = index - (count - 1) / 2;
         const worldOffset = axisDir.clone().multiplyScalar(offsetMultiplier * TUNING.explodeDistance);
 
-        // Compute where the mesh should be in world space, then convert to its parent's local space
         const currentWorldPos = part.getWorldPosition(new THREE.Vector3());
         const targetWorldPos = currentWorldPos.clone().add(worldOffset);
 
@@ -307,7 +313,7 @@
       selectedMesh = null;
     });
 
-    // Window Resize
+    // Window Resize Handler
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
@@ -318,7 +324,7 @@
     function animate() {
       requestAnimationFrame(animate);
 
-      // Interpolate part positions smoothly
+      // Smooth part trajectory
       modelParts.forEach((part) => {
         const target = isExploded ? part.userData.explodeLocalPos : part.userData.originalLocalPos;
         if (target) {
