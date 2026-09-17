@@ -116,15 +116,15 @@
       },
       "gear": {
         title: "Rotary Cam / Gear",
-        desc: "Bistable kinematic mechanism forcing 45-degree rotation per press.",
-        engineer: "Kinematic Engineer",
+        desc: "The gear, or 'cam' connects to both the ink cartridge and the plunger and turns the up and down motion into a rotating motion and locks into place to cause the pen to be able to retract",
+        engineer: "Materials / Mechanical Engineer",
         explodeOffset: -7.0
       },
       "Click_Cap": {
         title: "Actuator / Plunger",
         desc: "Primary tactile interface transmitting direct thumb force.",
         engineer: "Mechanical Engineer",
-        explodeOffset: 8.5
+        explodeOffset: -8.5
       }
     };
 
@@ -221,21 +221,8 @@
       });
 
       // Calculate Axis
-      let maxDistSq = 0;
-      let axisDir = new THREE.Vector3(1, 0, 0);
-      for (let i = 0; i < modelParts.length; i++) {
-        for (let j = i + 1; j < modelParts.length; j++) {
-          const distSq = modelParts[i].userData.worldCenter.distanceToSquared(modelParts[j].userData.worldCenter);
-          if (distSq > maxDistSq) {
-            maxDistSq = distSq;
-            axisDir.subVectors(modelParts[j].userData.worldCenter, modelParts[i].userData.worldCenter);
-          }
-        }
-      }
-      
-      if (axisDir.lengthSq() > 0.001) axisDir.normalize();
-      else axisDir.set(1, 0, 0);
-
+     // Hardcoded X-Axis Explosion
+      const axisDir = new THREE.Vector3(1, 0, 0);
       // Assign Offsets
       modelParts.forEach((part) => {
         const cleanName = getCleanName(part.name);
