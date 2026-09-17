@@ -70,7 +70,7 @@
         title: "Front Barrel Tube",
         desc: "Injection-molded plastic housing with male threads to secure the assembly.",
         engineer: "Plastics / Structural Engineer",
-        explodeOffset: -11.0 
+        explodeOffset: 11.0 
       },
       "rubber": {
         title: "Ergonomic Grip",
@@ -222,7 +222,7 @@
 
       // Calculate Axis
      // Hardcoded X-Axis Explosion
-      const axisDir = new THREE.Vector3(1, 0, 0);
+      const axisDir = new THREE.Vector3(-1, 0, 0);
       // Assign Offsets
       modelParts.forEach((part) => {
         const cleanName = getCleanName(part.name);
