@@ -5,78 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Retractable Pen Teardown & Analysis</title>
   <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #f8fafc;
-    }
-    #canvas-container {
-      width: 100vw;
-      height: 100vh;
-    }
+    body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; background-color: #f8fafc; }
+    #canvas-container { width: 100vw; height: 100vh; }
     #ui-panel {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      width: 320px;
-      background: rgba(255, 255, 255, 0.95);
-      padding: 24px;
-      border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-      backdrop-filter: blur(8px);
-      z-index: 10;
+      position: absolute; top: 20px; right: 20px; width: 320px;
+      background: rgba(255, 255, 255, 0.95); padding: 24px;
+      border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(8px); z-index: 10;
     }
-    #part-title {
-      margin-top: 0;
-      color: #0f172a;
-      font-size: 1.25rem;
-    }
-    #part-desc {
-      color: #475569;
-      line-height: 1.5;
-      font-size: 0.95rem;
-    }
+    #part-title { margin-top: 0; color: #0f172a; font-size: 1.25rem; }
+    #part-desc { color: #475569; line-height: 1.5; font-size: 0.95rem; }
     .engineer-badge {
-      display: inline-block;
-      margin-top: 8px;
-      padding: 6px 12px;
-      background: #e0e7ff;
-      color: #4338ca;
-      border-radius: 6px;
-      font-weight: 600;
-      font-size: 0.85rem;
+      display: inline-block; margin-top: 8px; padding: 6px 12px;
+      background: #e0e7ff; color: #4338ca; border-radius: 6px;
+      font-weight: 600; font-size: 0.85rem;
     }
     .button-group {
-      position: absolute;
-      bottom: 30px;
-      left: 30px;
-      display: flex;
-      gap: 12px;
-      z-index: 10;
+      position: absolute; bottom: 30px; left: 30px; display: flex; gap: 12px; z-index: 10;
     }
     .btn {
-      padding: 14px 24px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 0.95rem;
-      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
-      transition: background 0.2s, transform 0.1s;
+      padding: 14px 24px; background: #2563eb; color: white;
+      border: none; border-radius: 8px; cursor: pointer;
+      font-weight: 600; font-size: 0.95rem; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+      transition: background 0.2s;
     }
-    .btn:hover {
-      background: #1d4ed8;
-    }
-    .btn-secondary {
-      background: #475569;
-      box-shadow: 0 4px 14px rgba(71, 85, 105, 0.25);
-    }
-    .btn-secondary:hover {
-      background: #334155;
-    }
+    .btn:hover { background: #1d4ed8; }
+    .btn-secondary { background: #475569; box-shadow: 0 4px 14px rgba(71, 85, 105, 0.25); }
+    .btn-secondary:hover { background: #334155; }
   </style>
 </head>
 <body>
@@ -108,52 +63,74 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-    // Fine-Tuning Parameters
     const TUNING = {
-      explodeDistance: 0.4,  // Distance gap between adjacent parts in world units
-      minZoom: 0.5,          // Closest camera distance allowed
-      maxZoom: 30.0          // Furthest camera distance allowed
+      minZoom: 0.5,
+      maxZoom: 30.0
     };
 
+    // =========================================================================
+    // 🎛️ MANUAL EXPLOSION OFFSETS
+    // Adjust the `explodeOffset` numbers to slide parts forward or backward.
+    // If a part moves the wrong way, flip the sign (e.g. 4.0 to -4.0)
+    // =========================================================================
     const partData = {
-      "head": {
-        title: "Front Cone / Head",
-        desc: "Clear threaded nose cone that channels the ballpoint tip and provides an internal shoulder to hold the spring in compression.",
-        engineer: "Manufacturing / Plastics Engineer"
+      "front_tube": {
+        title: "Front Barrel Tube",
+        desc: "Injection-molded plastic housing with male threads to secure the assembly.",
+        engineer: "Plastics / Structural Engineer",
+        explodeOffset: 6.0 
+      },
+      "rubber": {
+        title: "Ergonomic Grip",
+        desc: "A thermoplastic elastomer (TPE) sleeve designed to reduce finger fatigue.",
+        engineer: "Ergonomics / Materials Engineer",
+        explodeOffset: 5.5 // Kept close to the front tube!
+      },
+      "tip": {
+        title: "Ballpoint Socket & Tip",
+        desc: "Precision-machined socket housing a micro tungsten-carbide ball.",
+        engineer: "Precision Mechanical Engineer",
+        explodeOffset: 2.5 // Kept close to the ink tube!
+      },
+      "ink_tube": {
+        title: "Ink Reservoir Tube",
+        desc: "Extruded tube holding high-viscosity ink paste and a clear follower gel.",
+        engineer: "Chemical / Manufacturing Engineer",
+        explodeOffset: 2.0 
       },
       "spring": {
         title: "Compression Return Spring",
-        desc: "A coiled steel wire spring that provides continuous backwards tension against the refill tube to retract the pen point.",
-        engineer: "Materials / Metallurgical Engineer"
+        desc: "A coiled steel wire spring providing continuous backwards tension.",
+        engineer: "Materials / Metallurgical Engineer",
+        explodeOffset: 0.0 // 0 means it stays in the center
       },
-      "ink": {
-        title: "Ink Refill & Writing Tip",
-        desc: "Houses the viscous ink supply and contains the micro tungsten-carbide ball that meters ink onto the writing surface via rolling action.",
-        engineer: "Precision Mechanical / Chemical Engineer"
-      },
-      "ink cap": {
+      "ink_cap": {
         title: "Ink Cartridge Follower Cap",
-        desc: "Seals the back end of the ink tube, preventing fluid leakage while acting as the contact surface for the internal clicking mechanism.",
-        engineer: "Plastics / Fluid Systems Engineer"
-      },
-      "clicker": {
-        title: "Actuator / Plunger (Clicker)",
-        desc: "The primary tactile interface. Transmits direct thumb force down into the internal ratchet system to cycle the pen position.",
-        engineer: "Ergonomics / Mechanical Engineer"
+        desc: "Seals the back end of the ink tube, acting as the contact surface for the clicker.",
+        engineer: "Plastics / Fluid Systems Engineer",
+        explodeOffset: -1.5
       },
       "gear": {
         title: "Rotary Cam / Pinion Gear",
-        desc: "The critical bistable mechanism. Angled teeth force 45-degree rotation with every press, locking into alternating deep and shallow slots.",
-        engineer: "Kinematic / Mechanical Engineer"
+        desc: "The critical bistable mechanism. Angled teeth force 45-degree rotation with every press.",
+        engineer: "Kinematic / Mechanical Engineer",
+        explodeOffset: -3.0
+      },
+      "clicker": {
+        title: "Actuator / Plunger",
+        desc: "Transmits direct thumb force down into the internal ratchet system.",
+        engineer: "Mechanical Engineer",
+        explodeOffset: -4.5
       },
       "back": {
-        title: "Main Barrel / Rear Housing",
-        desc: "Houses the pocket clip and primary internal tracks. Includes external rubberized grip ridges for user comfort and control.",
-        engineer: "Industrial / Plastics Engineer"
+        title: "Main Barrel & Clip",
+        desc: "Rear housing that encloses the cam mechanism.",
+        engineer: "Industrial / Plastics Engineer",
+        explodeOffset: -7.0
       }
     };
 
-    // Three.js Scene Setup
+    // Scene Setup
     const container = document.getElementById('canvas-container');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf8fafc);
@@ -178,16 +155,14 @@
 
     // Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 1.4));
-    
     const lightFront = new THREE.DirectionalLight(0xffffff, 1.6);
     lightFront.position.set(5, 8, 10);
     scene.add(lightFront);
-
     const lightBack = new THREE.DirectionalLight(0xffffff, 0.8);
     lightBack.position.set(-5, -4, -8);
     scene.add(lightBack);
 
-    // Model Loader & Setup
+    // Loader
     let modelParts = [];
     let isExploded = false;
     let selectedMesh = null;
@@ -197,31 +172,34 @@
       const model = gltf.scene;
       scene.add(model);
 
-      // Center model at the world origin
+      // Clean up Blender Cube if it exists
+      const junk = [];
+      model.traverse((child) => {
+        if (child.name === 'Cube') junk.push(child);
+      });
+      junk.forEach(obj => obj.removeFromParent());
+
+      // Center and scale model
       const rawBox = new THREE.Box3().setFromObject(model);
       const rawCenter = rawBox.getCenter(new THREE.Vector3());
       model.position.sub(rawCenter);
 
-      // Normalize scale so pen is always 10 units long
       const rawSize = rawBox.getSize(new THREE.Vector3());
       const maxDim = Math.max(rawSize.x, rawSize.y, rawSize.z);
-      const targetLength = 10.0;
-      const scaleRatio = targetLength / maxDim;
-      model.scale.setScalar(scaleRatio);
-
+      model.scale.setScalar(10.0 / maxDim);
       model.updateMatrixWorld(true);
 
-      // Collect meshes and enable DoubleSide rendering
+      // Collect meshes and calculate centerline
+      let maxDistSq = 0;
+      let axisDir = new THREE.Vector3(1, 0, 0);
+
       model.traverse((child) => {
         if (child.isMesh) {
-          // Render both front and back faces to fix infinitely thin wall appearance
           if (child.material) {
             const materials = Array.isArray(child.material) ? child.material : [child.material];
             materials.forEach((mat) => {
               mat.side = THREE.DoubleSide;
-              if (mat.transparent) {
-                mat.depthWrite = true;
-              }
+              if (mat.transparent) mat.depthWrite = true;
             });
           }
 
@@ -232,10 +210,7 @@
         }
       });
 
-      // Calculate pen centerline vector
-      let maxDistSq = 0;
-      let axisDir = new THREE.Vector3(1, 0, 0);
-
+      // Find the primary axis of the pen
       for (let i = 0; i < modelParts.length; i++) {
         for (let j = i + 1; j < modelParts.length; j++) {
           const distSq = modelParts[i].userData.worldCenter.distanceToSquared(modelParts[j].userData.worldCenter);
@@ -247,17 +222,15 @@
       }
       axisDir.normalize();
 
-      // Sort parts from tip to tail along the centerline
-      modelParts.sort((a, b) => {
-        return a.userData.worldCenter.dot(axisDir) - b.userData.worldCenter.dot(axisDir);
-      });
+      // Apply the MANUAL offsets from the dictionary
+      modelParts.forEach((part) => {
+        const cleanName = part.name.toLowerCase().replace(/<\d+>/g, '').trim();
+        
+        // Grab the offset from the dictionary, default to 0 if not found
+        const info = partData[cleanName];
+        const manualOffset = (info && info.explodeOffset !== undefined) ? info.explodeOffset : 0;
 
-      // Precalculate exploded coordinates in local space
-      const count = modelParts.length;
-      modelParts.forEach((part, index) => {
-        const offsetMultiplier = index - (count - 1) / 2;
-        const worldOffset = axisDir.clone().multiplyScalar(offsetMultiplier * TUNING.explodeDistance);
-
+        const worldOffset = axisDir.clone().multiplyScalar(manualOffset);
         const currentWorldPos = part.getWorldPosition(new THREE.Vector3());
         const targetWorldPos = currentWorldPos.clone().add(worldOffset);
 
@@ -265,29 +238,25 @@
       });
     });
 
-    // Raycast Selection & Orbit Refocusing
+    // Raycast Interaction
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
     window.addEventListener('pointerdown', (event) => {
       if (event.target.tagName === 'BUTTON' || event.target.closest('#ui-panel') || event.target.closest('.button-group')) return;
-
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(modelParts);
 
       if (intersects.length > 0) {
         selectedMesh = intersects[0].object;
         const cleanName = selectedMesh.name.toLowerCase().replace(/<\d+>/g, '').trim();
-        
         const info = partData[cleanName] || {
           title: selectedMesh.name,
           desc: "Precision engineering component.",
           engineer: "Mechanical Engineer"
         };
-
         document.getElementById('part-title').innerText = info.title;
         document.getElementById('part-desc').innerText = info.desc;
         document.getElementById('part-engineer').innerText = info.engineer;
@@ -299,7 +268,7 @@
       }
     });
 
-    // Button Handlers
+    // Buttons
     document.getElementById('explode-btn').addEventListener('click', () => {
       isExploded = !isExploded;
       if (!isExploded) {
@@ -313,31 +282,23 @@
       selectedMesh = null;
     });
 
-    // Window Resize Handler
+    // Resize & Animate
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Animation Loop
     function animate() {
       requestAnimationFrame(animate);
-
-      // Smooth part trajectory
       modelParts.forEach((part) => {
         const target = isExploded ? part.userData.explodeLocalPos : part.userData.originalLocalPos;
-        if (target) {
-          part.position.lerp(target, 0.08);
-        }
+        if (target) part.position.lerp(target, 0.08);
       });
-
-      // Track active part when focused
       if (isExploded && selectedMesh) {
         const meshBox = new THREE.Box3().setFromObject(selectedMesh);
         meshBox.getCenter(targetOrbitCenter);
       }
-
       controls.target.lerp(targetOrbitCenter, 0.08);
       controls.update();
       renderer.render(scene, camera);
