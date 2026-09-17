@@ -62,34 +62,38 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+    const TUNING = {
+      minZoom: 0.5,
+      maxZoom: 30.0
+    };
+
     // =========================================================================
     // 🎛️ PART DICTIONARY & OFFSETS
-    // If a part slides backwards instead of forwards, swap the sign (e.g., 6.0 to -6.0)
     // =========================================================================
     const partData = {
       "fronttube": {
         title: "Front Barrel Tube",
         desc: "Injection-molded plastic housing with male threads to secure the assembly.",
         engineer: "Plastics / Structural Engineer",
-        explodeOffset: 15.0
+        explodeOffset: 6.0 
       },
       "rubber": {
         title: "Ergonomic Grip",
         desc: "A thermoplastic elastomer (TPE) sleeve designed to reduce finger fatigue.",
         engineer: "Ergonomics / Materials Engineer",
-        explodeOffset: 10.0
+        explodeOffset: 5.5 
       },
       "ballpoint": {
         title: "Ballpoint Socket & Tip",
         desc: "Precision-machined socket housing a micro tungsten-carbide ball.",
         engineer: "Precision Mechanical Engineer",
-        explodeOffset: 1.0
+        explodeOffset: 2.5 
       },
       "inktube": {
         title: "Ink Reservoir Tube",
         desc: "Extruded tube holding high-viscosity ink paste and a clear follower gel.",
         engineer: "Chemical / Manufacturing Engineer",
-        explodeOffset: 0.0
+        explodeOffset: 0.0 // ANCHORED AT CENTER
       },
       "body1001": {
         title: "Unknown Body 1001",
@@ -97,15 +101,15 @@
         engineer: "Mechanical Engineer",
         explodeOffset: -1.5
       },
-      "RearTube-Clip": {
-        title: "Rear Tube and Clip",
-        desc: "PLastic Tube with female threads that mate with front tube.  Houses the Ink and gear mechanism",
-        engineer: "Mechanical Engineer / plastic design engineer / industrial design engineer",
-        explodeOffset: -4.0
+      "body1002": {
+        title: "Unknown Body 1002",
+        desc: "Click me to figure out what part I am!",
+        engineer: "Mechanical Engineer",
+        explodeOffset: -3.0
       },
-      "ClickCap": {
-        title: "Click Button",
-        desc: "Responsible for the 'click' interaction between the user and the mechanism.  Has theeth that interact with the gear.",
+      "body1003": {
+        title: "Unknown Body 1003",
+        desc: "Click me to figure out what part I am!",
         engineer: "Mechanical Engineer",
         explodeOffset: -5.0
       },
@@ -113,15 +117,14 @@
         title: "Unknown Body 1",
         desc: "Click me to figure out what part I am!",
         engineer: "Mechanical Engineer",
-        explodeOffset: 0.0
+        explodeOffset: -7.0
       }
     };
 
-    // Bulletproof Name Matching
     function getCleanName(rawName) {
       const lower = rawName.toLowerCase();
-      // MUST check the longer numbers (body1001) before body1 to prevent false positives!
-      const keys = ['fronttube', 'rubber', 'ballpoint', 'inktube', 'body1001', 'body1002', 'body1003', 'body1'];
+      // Sorted by length to prevent partial matching bugs
+      const keys = ['body1001', 'body1002', 'body1003', 'fronttube', 'ballpoint', 'inktube', 'rubber', 'body1'];
       for (let key of keys) {
         if (lower.includes(key)) return key;
       }
@@ -170,12 +173,25 @@
       const model = gltf.scene;
       scene.add(model);
 
-      // Remove Blender Cube
+      // 1. Remove Blender Cube
       const junk = [];
       model.traverse((child) => { if (child.name === 'Cube') junk.push(child); });
       junk.forEach(obj => obj.removeFromParent());
 
-      // Center and Scale
+      // =====================================================================
+      // 2. THE FIX: FLATTEN THE CAD HIERARCHY
+      // This pulls every mesh out of its Fusion 360 component folder and 
+      // puts them all on the exact same root level so they act independently!
+      // =====================================================================
+      const allMeshes = [];
+      model.traverse((child) => {
+        if (child.isMesh) allMeshes.push(child);
+      });
+      allMeshes.forEach((mesh) => {
+        model.attach(mesh); 
+      });
+
+      // 3. Center and Scale
       const rawBox = new THREE.Box3().setFromObject(model);
       const rawCenter = rawBox.getCenter(new THREE.Vector3());
       model.position.sub(rawCenter);
@@ -185,7 +201,7 @@
       model.scale.setScalar(10.0 / maxDim);
       model.updateMatrixWorld(true);
 
-      // Collect meshes and fix thin walls
+      // 4. Collect meshes and fix thin walls
       model.traverse((child) => {
         if (child.isMesh) {
           if (child.material) {
@@ -202,7 +218,7 @@
         }
       });
 
-      // Calculate the centerline of the pen robustly
+      // 5. Calculate the centerline of the pen robustly
       let maxDistSq = 0;
       let axisDir = new THREE.Vector3(1, 0, 0);
       for (let i = 0; i < modelParts.length; i++) {
@@ -215,16 +231,13 @@
         }
       }
       
-      // Fallback in case distance is 0, otherwise normalize
       if (axisDir.lengthSq() > 0.001) axisDir.normalize();
       else axisDir.set(1, 0, 0);
 
-      // Assign the manual offsets
+      // 6. Assign the manual offsets
       modelParts.forEach((part) => {
         const cleanName = getCleanName(part.name);
         const info = partData[cleanName];
-        
-        // Grab the offset, default to 0
         const manualOffset = (info && info.explodeOffset !== undefined) ? info.explodeOffset : 0;
 
         const worldOffset = axisDir.clone().multiplyScalar(manualOffset);
@@ -274,7 +287,6 @@
     explodeBtn.addEventListener('click', () => {
       isExploded = !isExploded;
       
-      // Give visual feedback that the button was clicked
       if (isExploded) {
         explodeBtn.innerText = "Collapse View";
         explodeBtn.style.backgroundColor = "#dc2626"; // Red
