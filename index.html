@@ -84,7 +84,7 @@
         engineer: "Precision Mechanical Engineer",
         explodeOffset: 2.0 
       },
-      "body1001": {
+      "spring": {
         title: "Compression Spring",
         desc: "Coiled steel wire providing continuous backwards tension.",
         engineer: "Mechanical Engineer",
@@ -102,29 +102,34 @@
         engineer: "Plastics / Fluid Systems Engineer",
         explodeOffset: -1.0
       },
-      "body1002": {
-        title: "Main Barrel & Clip",
-        desc: "Rear housing that encloses the internal cam mechanism.",
+      "barrel": {
+        title: "Main Rear Barrel",
+        desc: "Rear housing tube that encloses the internal cam mechanism.",
         engineer: "Plastics Engineer",
         explodeOffset: -4.0
+      },
+      "clip": {
+        title: "Pocket Clip",
+        desc: "Cantilever beam structure designed to secure the pen to a pocket or notebook.",
+        engineer: "Structural Engineer",
+        explodeOffset: -5.0
       },
       "gear": {
         title: "Rotary Cam / Gear",
         desc: "Bistable kinematic mechanism forcing 45-degree rotation per press.",
         engineer: "Kinematic Engineer",
-        explodeOffset: -6.0
+        explodeOffset: -7.0
       },
-      "body1003": {
+      "clicker": {
         title: "Actuator / Plunger",
         desc: "Primary tactile interface transmitting direct thumb force.",
         engineer: "Mechanical Engineer",
-        explodeOffset: -7.5
+        explodeOffset: -8.5
       }
     };
 
     function getCleanName(rawName) {
       const lowerRaw = rawName.toLowerCase();
-      // Sort by length to check longer names first
       const keys = Object.keys(partData).sort((a, b) => b.length - a.length);
       for (let key of keys) {
         if (lowerRaw.includes(key.toLowerCase())) return key; 
@@ -169,46 +174,37 @@
     let selectedMesh = null;
     const loader = new GLTFLoader();
 
-    // =========================================================================
-    // MULTIPLE FILE LOADER
-    // Loads the main pen assembly and the separate gear file at the same time
-    // =========================================================================
-    Promise.all([
-      loader.loadAsync('pen_assembly.glb'),
-      loader.loadAsync('gear.glb')
-    ]).then(([penGltf, gearGltf]) => {
-      
-      const assemblyGroup = new THREE.Group();
-      assemblyGroup.add(penGltf.scene);
-      assemblyGroup.add(gearGltf.scene);
-      scene.add(assemblyGroup);
+    // Load Single Assembly
+    loader.load('pen_assembly.glb', (gltf) => {
+      const model = gltf.scene;
+      scene.add(model);
 
-      // Clean up Blender Cubes in BOTH models
+      // Clean up Blender Cube
       const junk = [];
-      assemblyGroup.traverse((child) => { if (child.name === 'Cube') junk.push(child); });
+      model.traverse((child) => { if (child.name === 'Cube') junk.push(child); });
       junk.forEach(obj => obj.removeFromParent());
 
-      // Flatten Hierarchy for everything
+      // Flatten Hierarchy
       const allMeshes = [];
-      assemblyGroup.traverse((child) => {
+      model.traverse((child) => {
         if (child.isMesh) allMeshes.push(child);
       });
       allMeshes.forEach((mesh) => {
-        assemblyGroup.attach(mesh); 
+        model.attach(mesh); 
       });
 
-      // Center and Scale the combined group
-      const rawBox = new THREE.Box3().setFromObject(assemblyGroup);
+      // Center and Scale
+      const rawBox = new THREE.Box3().setFromObject(model);
       const rawCenter = rawBox.getCenter(new THREE.Vector3());
-      assemblyGroup.position.sub(rawCenter);
+      model.position.sub(rawCenter);
 
       const rawSize = rawBox.getSize(new THREE.Vector3());
       const maxDim = Math.max(rawSize.x, rawSize.y, rawSize.z);
-      assemblyGroup.scale.setScalar(10.0 / maxDim);
-      assemblyGroup.updateMatrixWorld(true);
+      model.scale.setScalar(10.0 / maxDim);
+      model.updateMatrixWorld(true);
 
       // Fix Thin Walls & Setup Parts
-      assemblyGroup.traverse((child) => {
+      model.traverse((child) => {
         if (child.isMesh) {
           if (child.material) {
             const materials = Array.isArray(child.material) ? child.material : [child.material];
@@ -245,7 +241,6 @@
         const cleanName = getCleanName(part.name);
         const info = partData[cleanName];
         
-        // If a mesh name is completely unknown, keep it anchored at 0 so it doesn't fly off
         const manualOffset = (info && info.explodeOffset !== undefined) ? info.explodeOffset : 0;
 
         const worldOffset = axisDir.clone().multiplyScalar(manualOffset);
@@ -258,8 +253,6 @@
           part.userData.explodeLocalPos = targetWorldPos.clone();
         }
       });
-    }).catch(error => {
-      console.error("Error loading GLB files: ", error);
     });
 
     // Raycast Interaction
