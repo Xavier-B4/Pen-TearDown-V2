@@ -225,6 +225,8 @@
       // Apply the MANUAL offsets from the dictionary
       modelParts.forEach((part) => {
         const cleanName = part.name.toLowerCase().replace(/<\d+>/g, '').trim();
+
+        console.log("Found mesh named:", cleanName);
         
         // Grab the offset from the dictionary, default to 0 if not found
         const info = partData[cleanName];
