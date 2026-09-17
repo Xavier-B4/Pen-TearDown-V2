@@ -159,6 +159,8 @@
     controls.target.set(0, 0, 0);
 
     const targetOrbitCenter = new THREE.Vector3(0, 0, 0);
+    const targetOrbitCenter = new THREE.Vector3(0, 0, 0);
+    const defaultOrbitCenter = new THREE.Vector3(0, 0, 0); // New permanent anchor
 
     // Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 1.4));
@@ -219,6 +221,13 @@
           modelParts.push(child);
         }
       });
+      // Lock default rotation to the exact center of the ink tube
+      const anchorPart = modelParts.find(p => getCleanName(p.name) === 'inktube');
+      if (anchorPart) {
+        defaultOrbitCenter.copy(anchorPart.userData.worldCenter);
+        targetOrbitCenter.copy(defaultOrbitCenter);
+        controls.target.copy(defaultOrbitCenter);
+      }
 
       // Calculate Axis
      // Hardcoded X-Axis Explosion
@@ -283,13 +292,13 @@
       } else {
         explodeBtn.innerText = "Toggle Exploded View";
         explodeBtn.style.backgroundColor = "#2563eb"; // Blue
-        targetOrbitCenter.set(0, 0, 0);
+        targetOrbitCenter.copy(defaultOrbitCenter);
         selectedMesh = null;
       }
     });
 
     document.getElementById('reset-focus-btn').addEventListener('click', () => {
-      targetOrbitCenter.set(0, 0, 0);
+      targetOrbitCenter.copy(defaultOrbitCenter);
       selectedMesh = null;
     });
 
