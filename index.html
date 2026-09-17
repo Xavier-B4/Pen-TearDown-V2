@@ -70,13 +70,13 @@
         title: "Front Barrel Tube",
         desc: "Injection-molded plastic housing with male threads to secure the assembly.",
         engineer: "Plastics / Structural Engineer",
-        explodeOffset: 10.0
+        explodeOffset: 8.0 
       },
       "rubber": {
         title: "Ergonomic Grip",
         desc: "A thermoplastic elastomer (TPE) sleeve designed to reduce finger fatigue.",
         engineer: "Ergonomics / Materials Engineer",
-        explodeOffset: 6.0
+        explodeOffset: 4.0 
       },
       "ballpoint": {
         title: "Ballpoint Socket & Tip",
@@ -96,39 +96,38 @@
         engineer: "Chemical / Manufacturing Engineer",
         explodeOffset: 0.0 // Anchored at center
       },
+      "inkcap": {
+        title: "Ink Cartridge Follower Cap",
+        desc: "Seals the back end of the ink tube, acting as the contact surface for the clicker.",
+        engineer: "Plastics / Fluid Systems Engineer",
+        explodeOffset: -1.0
+      },
       "body1002": {
         title: "Main Barrel & Clip",
         desc: "Rear housing that encloses the internal cam mechanism.",
         engineer: "Plastics Engineer",
-        explodeOffset: -5.0
+        explodeOffset: -4.0
       },
-      "body1": {
+      "gear": {
         title: "Rotary Cam / Gear",
         desc: "Bistable kinematic mechanism forcing 45-degree rotation per press.",
         engineer: "Kinematic Engineer",
-        explodeOffset: -1.0
+        explodeOffset: -6.0
       },
       "body1003": {
         title: "Actuator / Plunger",
         desc: "Primary tactile interface transmitting direct thumb force.",
         engineer: "Mechanical Engineer",
-        explodeOffset: -8.0
+        explodeOffset: -7.5
       }
     };
 
-    // =========================================================================
-    // 🛡️ DYNAMIC NAME MATCHER
-    // This now automatically reads your dictionary keys and ignores capitalization
-    // =========================================================================
     function getCleanName(rawName) {
       const lowerRaw = rawName.toLowerCase();
-      // Sort by length to check longer names first (prevents partial match bugs)
+      // Sort by length to check longer names first
       const keys = Object.keys(partData).sort((a, b) => b.length - a.length);
-      
       for (let key of keys) {
-        if (lowerRaw.includes(key.toLowerCase())) {
-          return key; 
-        }
+        if (lowerRaw.includes(key.toLowerCase())) return key; 
       }
       return 'unknown';
     }
@@ -150,7 +149,7 @@
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = 0.5;
+    controls.minDistance = 0.05;
     controls.maxDistance = 30.0;
     controls.target.set(0, 0, 0);
 
@@ -165,41 +164,51 @@
     lightBack.position.set(-5, -4, -8);
     scene.add(lightBack);
 
-    // Loader
     let modelParts = [];
     let isExploded = false;
     let selectedMesh = null;
     const loader = new GLTFLoader();
 
-    loader.load('pen_assembly.glb', (gltf) => {
-      const model = gltf.scene;
-      scene.add(model);
+    // =========================================================================
+    // MULTIPLE FILE LOADER
+    // Loads the main pen assembly and the separate gear file at the same time
+    // =========================================================================
+    Promise.all([
+      loader.loadAsync('pen_assembly.glb'),
+      loader.loadAsync('gear.glb')
+    ]).then(([penGltf, gearGltf]) => {
+      
+      const assemblyGroup = new THREE.Group();
+      assemblyGroup.add(penGltf.scene);
+      assemblyGroup.add(gearGltf.scene);
+      scene.add(assemblyGroup);
 
+      // Clean up Blender Cubes in BOTH models
       const junk = [];
-      model.traverse((child) => { if (child.name === 'Cube') junk.push(child); });
+      assemblyGroup.traverse((child) => { if (child.name === 'Cube') junk.push(child); });
       junk.forEach(obj => obj.removeFromParent());
 
-      // Flatten Hierarchy
+      // Flatten Hierarchy for everything
       const allMeshes = [];
-      model.traverse((child) => {
+      assemblyGroup.traverse((child) => {
         if (child.isMesh) allMeshes.push(child);
       });
       allMeshes.forEach((mesh) => {
-        model.attach(mesh); 
+        assemblyGroup.attach(mesh); 
       });
 
-      // Center and Scale
-      const rawBox = new THREE.Box3().setFromObject(model);
+      // Center and Scale the combined group
+      const rawBox = new THREE.Box3().setFromObject(assemblyGroup);
       const rawCenter = rawBox.getCenter(new THREE.Vector3());
-      model.position.sub(rawCenter);
+      assemblyGroup.position.sub(rawCenter);
 
       const rawSize = rawBox.getSize(new THREE.Vector3());
       const maxDim = Math.max(rawSize.x, rawSize.y, rawSize.z);
-      model.scale.setScalar(10.0 / maxDim);
-      model.updateMatrixWorld(true);
+      assemblyGroup.scale.setScalar(10.0 / maxDim);
+      assemblyGroup.updateMatrixWorld(true);
 
-      // Fix Thin Walls
-      model.traverse((child) => {
+      // Fix Thin Walls & Setup Parts
+      assemblyGroup.traverse((child) => {
         if (child.isMesh) {
           if (child.material) {
             const materials = Array.isArray(child.material) ? child.material : [child.material];
@@ -235,6 +244,8 @@
       modelParts.forEach((part) => {
         const cleanName = getCleanName(part.name);
         const info = partData[cleanName];
+        
+        // If a mesh name is completely unknown, keep it anchored at 0 so it doesn't fly off
         const manualOffset = (info && info.explodeOffset !== undefined) ? info.explodeOffset : 0;
 
         const worldOffset = axisDir.clone().multiplyScalar(manualOffset);
@@ -247,6 +258,8 @@
           part.userData.explodeLocalPos = targetWorldPos.clone();
         }
       });
+    }).catch(error => {
+      console.error("Error loading GLB files: ", error);
     });
 
     // Raycast Interaction
