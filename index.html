@@ -65,7 +65,7 @@
     // =========================================================================
     // 🎛️ PART DICTIONARY & BALANCED OFFSETS
     // =========================================================================
-    const partData = {
+  const partData = {
       "fronttube": {
         title: "Front Barrel Tube",
         desc: "Injection-molded plastic housing with male threads to secure and house the assembly.",
@@ -129,10 +129,11 @@
     };
 
     function getCleanName(rawName) {
-      const lowerRaw = rawName.toLowerCase();
+      const lowerRaw = rawName.toLowerCase().replace(/[_ ]/g, '');
       const keys = Object.keys(partData).sort((a, b) => b.length - a.length);
       for (let key of keys) {
-        if (lowerRaw.includes(key.toLowerCase())) return key; 
+        const cleanKey = key.toLowerCase().replace(/[_ ]/g, '');
+        if (lowerRaw.includes(cleanKey)) return key; 
       }
       return 'unknown';
     }
@@ -156,11 +157,10 @@
     controls.dampingFactor = 0.05;
     controls.minDistance = 0.05;
     controls.maxDistance = 30.0;
-    controls.target.set(0, 0, 0);
-
+    
+    // Default Anchors for Camera
     const targetOrbitCenter = new THREE.Vector3(0, 0, 0);
-    const targetOrbitCenter = new THREE.Vector3(0, 0, 0);
-    const defaultOrbitCenter = new THREE.Vector3(0, 0, 0); // New permanent anchor
+    const defaultOrbitCenter = new THREE.Vector3(0, 0, 0);
 
     // Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 1.4));
@@ -176,7 +176,7 @@
     let selectedMesh = null;
     const loader = new GLTFLoader();
 
-    // Load Single Assembly
+    // Load Assembly
     loader.load('pen_assembly.glb', (gltf) => {
       const model = gltf.scene;
       scene.add(model);
@@ -205,7 +205,7 @@
       model.scale.setScalar(10.0 / maxDim);
       model.updateMatrixWorld(true);
 
-      // Fix Thin Walls & Setup Parts
+      // Setup Parts
       model.traverse((child) => {
         if (child.isMesh) {
           if (child.material) {
@@ -221,6 +221,7 @@
           modelParts.push(child);
         }
       });
+
       // Lock default rotation to the exact center of the ink tube
       const anchorPart = modelParts.find(p => getCleanName(p.name) === 'inktube');
       if (anchorPart) {
@@ -229,9 +230,9 @@
         controls.target.copy(defaultOrbitCenter);
       }
 
-      // Calculate Axis
-     // Hardcoded X-Axis Explosion
-      const axisDir = new THREE.Vector3(-1, 0, 0);
+      // Hardcoded Axis
+      const axisDir = new THREE.Vector3(1, 0, 0);
+
       // Assign Offsets
       modelParts.forEach((part) => {
         const cleanName = getCleanName(part.name);
@@ -292,13 +293,13 @@
       } else {
         explodeBtn.innerText = "Toggle Exploded View";
         explodeBtn.style.backgroundColor = "#2563eb"; // Blue
-        targetOrbitCenter.copy(defaultOrbitCenter);
+        targetOrbitCenter.copy(defaultOrbitCenter); // Reset to ink tube center
         selectedMesh = null;
       }
     });
 
     document.getElementById('reset-focus-btn').addEventListener('click', () => {
-      targetOrbitCenter.copy(defaultOrbitCenter);
+      targetOrbitCenter.copy(defaultOrbitCenter); // Reset to ink tube center
       selectedMesh = null;
     });
 
